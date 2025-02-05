@@ -207,6 +207,7 @@ class ActionAuthenticatorMixin(object):
 
     def _authenticate_and_authorize_normal_action(self, resource: str = "*") -> None:
         from moto.iam.access_control import IAMRequest
+
         self._authenticate_and_authorize_action(IAMRequest, resource)
 
     def _authenticate_and_authorize_s3_action(
