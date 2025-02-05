@@ -13,6 +13,12 @@ class IamResponse(BaseResponse):
     def backend(self) -> IAMBackend:
         return iam_backends[self.current_account][self.partition]
 
+    def _determine_resource(self) -> str:
+        if "RoleName" in self.data and "CreateRole" not in self.data["Action"]:
+            role_name = self.data["RoleName"][0]
+            return self.backend.get_role(role_name).arn
+        return "*"
+
     def attach_role_policy(self) -> str:
         policy_arn = self._get_param("PolicyArn")
         role_name = self._get_param("RoleName")

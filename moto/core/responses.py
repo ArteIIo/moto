@@ -32,6 +32,7 @@ from moto.core.common_types import TYPE_IF_NONE, TYPE_RESPONSE
 from moto.core.exceptions import DryRunClientError
 from moto.core.utils import (
     camelcase_to_underscores,
+    format_conditions,
     gzip_decompress,
     method_names_from_class,
     params_sort_function,
@@ -200,12 +201,12 @@ class ActionAuthenticatorMixin(object):
             )
             iam_request.check_signature()
             iam_request.check_action_permitted(resource)
+            iam_request.check_resource_permits(resource, format_conditions(self.data))  # type: ignore[attr-defined]
         else:
             ActionAuthenticatorMixin.request_count += 1
 
     def _authenticate_and_authorize_normal_action(self, resource: str = "*") -> None:
         from moto.iam.access_control import IAMRequest
-
         self._authenticate_and_authorize_action(IAMRequest, resource)
 
     def _authenticate_and_authorize_s3_action(
@@ -568,12 +569,8 @@ class BaseResponse(_TemplateEnvironmentMixin, ActionAuthenticatorMixin):
 
     def call_action(self) -> TYPE_RESPONSE:
         headers = self.response_headers
-        print(self.data.keys())
         if hasattr(self, "_determine_resource"):
             resource = self._determine_resource()
-        elif "RoleName" in self.data:
-            print(self.data["RoleName"])
-            resource = "ROLE_" + self.data["RoleName"][0]
         else:
             resource = "*"
 

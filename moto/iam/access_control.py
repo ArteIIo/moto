@@ -252,15 +252,10 @@ class IAMRequestBase(object, metaclass=ABCMeta):
         ):  # always allowed, even if there's an explicit Deny for it
             return
         policies = self._access_key.collect_policies()
-
         permitted = False
         for policy in policies:
             iam_policy = IAMPolicy(policy)
             print(f"check_action_permitted: {resource}")
-            if resource.startswith("ROLE_"):
-                print(resource.removeprefix("ROLE_"))
-                print(self.backend.get_role(resource.removeprefix("ROLE_")))
-                resource = self.backend.get_role(resource.removeprefix("ROLE_")).arn
             permission_result = iam_policy.is_action_permitted(self._action, resource)
             if permission_result == PermissionResult.DENIED:
                 self._raise_access_denied()
@@ -269,6 +264,20 @@ class IAMRequestBase(object, metaclass=ABCMeta):
 
         if not permitted:
             self._raise_access_denied()
+
+    def check_resource_permits(self, resource: str, condition: dict[str, dict[str, str]]) -> None:
+        target_principal = self._access_key.arn
+
+        role = self.backend.get_role_by_arn(resource)
+        role_assume_policy = IAMPolicy(role.assume_role_policy_document)
+
+        permission_result = role_assume_policy.is_action_permitted(
+            self._action, resource,
+            target_principal, condition)
+
+        if permission_result == PermissionResult.DENIED:
+            self._raise_access_denied()
+
 
     @abstractmethod
     def _raise_signature_does_not_match(self) -> None:
@@ -392,14 +401,14 @@ class IAMPolicy:
         self._policy_json = json.loads(policy_document)
 
     def is_action_permitted(
-        self, action: str, resource: str = "*"
+        self, action: str, resource: str = "*", principal: str = None, conditions: dict[str, dict[str, str]] = None,
     ) -> "PermissionResult":
         permitted = False
         if isinstance(self._policy_json["Statement"], list):
             for policy_statement in self._policy_json["Statement"]:
                 iam_policy_statement = IAMPolicyStatement(policy_statement)
                 permission_result = iam_policy_statement.is_action_permitted(
-                    action, resource
+                    action, resource, principal, conditions,
                 )
                 if permission_result == PermissionResult.DENIED:
                     return permission_result
@@ -407,7 +416,7 @@ class IAMPolicy:
                     permitted = True
         else:  # dict
             iam_policy_statement = IAMPolicyStatement(self._policy_json["Statement"])
-            return iam_policy_statement.is_action_permitted(action, resource)
+            return iam_policy_statement.is_action_permitted(action, resource, principal, conditions)
 
         if permitted:
             return PermissionResult.PERMITTED
@@ -420,7 +429,7 @@ class IAMPolicyStatement:
         self._statement = statement
 
     def is_action_permitted(
-        self, action: str, resource: str = "*"
+        self, action: str, resource: str = "*", principal: str = None, conditions: dict[str, dict[str, str]] = None,
     ) -> "PermissionResult":
         is_action_concerned = False
 
@@ -434,6 +443,15 @@ class IAMPolicyStatement:
         if is_action_concerned:
             if self.is_unknown_principal(self._statement.get("Principal")):
                 return PermissionResult.NEUTRAL
+            elif principal and not self._check_principal(principal):
+                return PermissionResult.DENIED
+
+            if conditions and not self._check_conditions(conditions):
+                return PermissionResult.DENIED
+
+            if not self._statement.get("Resource"):
+                return PermissionResult.PERMITTED
+
             same_resource = self._check_element_matches("Resource", resource)
             if not same_resource:
                 return PermissionResult.NEUTRAL
@@ -459,6 +477,20 @@ class IAMPolicyStatement:
             return True
         return False
 
+    def _check_principal(self, principal: str) -> bool:
+        expected_principals = self._statement.get("Principal")
+        if not expected_principals:
+            return True
+
+        return principal == expected_principals.get("AWS") or principal in expected_principals.get("AWS")
+
+    def _check_conditions(self, conditions: dict[str, dict[str, str]]) -> bool:
+        expected_conditions = self._statement.get("Condition")
+        if not expected_conditions:
+            return True
+
+        return conditions == expected_conditions
+
     def _check_element_matches(self, statement_element: Any, value: str) -> bool:
         if isinstance(self._statement[statement_element], list):
             for statement_element_value in self._statement[statement_element]:
@@ -470,12 +502,8 @@ class IAMPolicyStatement:
 
     @staticmethod
     def _match(pattern: str, string: str) -> Optional[Match[str]]:
-        print(string)
-        print(pattern)
         pattern = pattern.replace("*", ".*")
         pattern = f"^{pattern}$"
-        print(pattern)
-        print(re.match(pattern, string))
         return re.match(pattern, string)
 
 
