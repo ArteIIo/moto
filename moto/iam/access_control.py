@@ -43,6 +43,7 @@ from moto.sts.models import sts_backends
 from moto.utilities.utils import get_partition
 
 from .models import IAMBackend, Policy, iam_backends
+from .utils import REQUIRE_RESOURCE_ACCESS_POLICIES_CHECK, format_conditions
 
 log = logging.getLogger(__name__)
 
@@ -261,23 +262,33 @@ class IAMRequestBase(object, metaclass=ABCMeta):
             elif permission_result == PermissionResult.PERMITTED:
                 permitted = True
 
+        if self._should_check_resource_assume_policies():
+            permitted = self._check_resource_permits(resource)
+
         if not permitted:
             self._raise_access_denied()
 
-    def check_resource_permits(
-        self, resource: str, condition: dict[str, dict[str, str]]
-    ) -> None:
+    def _should_check_resource_assume_policies(self) -> bool:
+        return self._action in REQUIRE_RESOURCE_ACCESS_POLICIES_CHECK
+
+    def _check_resource_permits(
+        self,
+        resource: str,
+    ) -> bool:
         target_principal = self._access_key.arn
+        target_conditions = format_conditions(self._data)
 
         role = self.backend.get_role_by_arn(resource)
         role_assume_policy = IAMPolicy(role.assume_role_policy_document)
 
         permission_result = role_assume_policy.is_action_permitted(
-            self._action, resource, target_principal, condition
+            self._action,
+            resource,
+            target_principal,
+            target_conditions,
         )
 
-        if permission_result == PermissionResult.DENIED:
-            self._raise_access_denied()
+        return permission_result == PermissionResult.PERMITTED
 
     @abstractmethod
     def _raise_signature_does_not_match(self) -> None:
@@ -405,7 +416,7 @@ class IAMPolicy:
         action: str,
         resource: str = "*",
         principal: Optional[str] = None,
-        conditions: Optional[dict[str, dict[str, str]]] = None,
+        conditions: Optional[Dict[str, Dict[str, str]]] = None,
     ) -> "PermissionResult":
         permitted = False
         if isinstance(self._policy_json["Statement"], list):
@@ -442,7 +453,7 @@ class IAMPolicyStatement:
         action: str,
         resource: str = "*",
         principal: Optional[str] = None,
-        conditions: Optional[dict[str, dict[str, str]]] = None,
+        conditions: Optional[Dict[str, Dict[str, str]]] = None,
     ) -> "PermissionResult":
         is_action_concerned = False
 
@@ -499,7 +510,7 @@ class IAMPolicyStatement:
             "AWS"
         ) or principal in expected_principals.get("AWS")
 
-    def _check_conditions(self, conditions: dict[str, dict[str, str]]) -> bool:
+    def _check_conditions(self, conditions: Dict[str, Dict[str, str]]) -> bool:
         expected_conditions = self._statement.get("Condition")
         if not expected_conditions:
             return True

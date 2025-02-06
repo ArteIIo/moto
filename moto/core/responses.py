@@ -32,7 +32,6 @@ from moto.core.common_types import TYPE_IF_NONE, TYPE_RESPONSE
 from moto.core.exceptions import DryRunClientError
 from moto.core.utils import (
     camelcase_to_underscores,
-    format_conditions,
     gzip_decompress,
     method_names_from_class,
     params_sort_function,
@@ -201,7 +200,6 @@ class ActionAuthenticatorMixin(object):
             )
             iam_request.check_signature()
             iam_request.check_action_permitted(resource)
-            iam_request.check_resource_permits(resource, format_conditions(self.data))  # type: ignore[attr-defined]
         else:
             ActionAuthenticatorMixin.request_count += 1
 

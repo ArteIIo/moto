@@ -451,10 +451,3 @@ def get_equivalent_url_in_aws_domain(url: str) -> Tuple[ParseResult, bool]:
             fragment=parsed.fragment,
         )
         return (result, True)
-
-
-def format_conditions(data: dict[str, str]) -> Optional[dict[str, dict[str, str]]]:
-    if "ExternalId" in data:
-        return {"StringEquals": {"sts:ExternalId": data["ExternalId"][0]}}
-
-    return None
