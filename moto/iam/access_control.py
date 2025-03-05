@@ -42,6 +42,7 @@ from moto.s3.exceptions import (
 from moto.sts.models import sts_backends
 from moto.utilities.utils import get_partition
 
+from .exceptions import IAMNotFoundException
 from .models import IAMBackend, Policy, iam_backends
 from .utils import REQUIRE_RESOURCE_ACCESS_POLICIES_CHECK, format_conditions
 
@@ -268,11 +269,16 @@ class IAMRequestBase(object, metaclass=ABCMeta):
         if not permitted:
             self._raise_access_denied()
 
-    def _is_assuming_role_operation(self, resource: str) -> bool:
-        return (
-            "role" in resource.lower()
-            and self._action in REQUIRE_RESOURCE_ACCESS_POLICIES_CHECK
-        )
+    def _is_assuming_role_operation(self, resource_arn: str) -> bool:
+        if ":role" not in resource_arn.lower():
+            return False
+
+        try:
+            self.backend.get_role_by_arn(resource_arn)
+        except IAMNotFoundException:
+            return False
+
+        return self._action in REQUIRE_RESOURCE_ACCESS_POLICIES_CHECK
 
     def _check_role_trust_relationship(
         self,
