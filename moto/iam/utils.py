@@ -69,3 +69,6 @@ def format_conditions(data: Dict[str, str]) -> Optional[Dict[str, Dict[str, str]
         return {"StringEquals": {"sts:ExternalId": data["ExternalId"][0]}}
 
     return None
+
+def is_role_resource(data: Dict[str, any]) -> bool:
+    return "RoleName" in data

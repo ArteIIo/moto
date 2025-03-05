@@ -262,28 +262,28 @@ class IAMRequestBase(object, metaclass=ABCMeta):
             elif permission_result == PermissionResult.PERMITTED:
                 permitted = True
 
-        if self._should_check_resource_assume_policies():
-            permitted = self._check_resource_permits(resource)
+        if self._is_assuming_role_operation(resource):
+            permitted = self._check_role_trust_relationship(resource)
 
         if not permitted:
             self._raise_access_denied()
 
-    def _should_check_resource_assume_policies(self) -> bool:
-        return self._action in REQUIRE_RESOURCE_ACCESS_POLICIES_CHECK
+    def _is_assuming_role_operation(self, resource: str) -> bool:
+        return "role" in resource.lower() and self._action in REQUIRE_RESOURCE_ACCESS_POLICIES_CHECK
 
-    def _check_resource_permits(
+    def _check_role_trust_relationship(
         self,
-        resource: str,
+        role_arn: str,
     ) -> bool:
         target_principal = self._access_key.arn
         target_conditions = format_conditions(self._data)
 
-        role = self.backend.get_role_by_arn(resource)
+        role = self.backend.get_role_by_arn(role_arn)
         role_assume_policy = IAMPolicy(role.assume_role_policy_document)
 
         permission_result = role_assume_policy.is_action_permitted(
             self._action,
-            resource,
+            role_arn,
             target_principal,
             target_conditions,
         )
