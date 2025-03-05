@@ -269,7 +269,10 @@ class IAMRequestBase(object, metaclass=ABCMeta):
             self._raise_access_denied()
 
     def _is_assuming_role_operation(self, resource: str) -> bool:
-        return "role" in resource.lower() and self._action in REQUIRE_RESOURCE_ACCESS_POLICIES_CHECK
+        return (
+            "role" in resource.lower()
+            and self._action in REQUIRE_RESOURCE_ACCESS_POLICIES_CHECK
+        )
 
     def _check_role_trust_relationship(
         self,
