@@ -1,6 +1,6 @@
 import base64
 import string
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from moto.moto_api._internal import mock_random as random
 
@@ -71,5 +71,5 @@ def format_conditions(data: Dict[str, str]) -> Optional[Dict[str, Dict[str, str]
     return None
 
 
-def is_role_resource(data: Dict[str, any]) -> bool:
+def is_role_resource(data: Dict[str, Any]) -> bool:
     return "RoleName" in data
