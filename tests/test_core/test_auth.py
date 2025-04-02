@@ -944,6 +944,13 @@ def test_ssm_service() -> None:
 @set_initial_no_auth_action_count(4)
 @mock_aws
 def test_sts_assume_role_with_external_id() -> None:
+    import requests
+
+    AWS_MOCK_HOST = "localhost"
+    requests.post(f"http://{AWS_MOCK_HOST}:5000/moto-api/reset")
+    requests.post(
+        f"http://{AWS_MOCK_HOST}:5000/moto-api/reset-auth", data=str(4).encode("utf-8")
+    )
     user_name = "test-user"
     role_name = "test-role"
 
