@@ -427,7 +427,7 @@ class IAMPolicy:
         action: str,
         resource: str = "*",
         principal: Optional[str] = None,
-        incoming_condition_values: Optional[Dict[str, Union[str, List[str]]]] = None,
+        incoming_condition_values: Optional[Dict[str, str]] = None,
     ) -> "PermissionResult":
         permitted = False
         if isinstance(self._policy_json["Statement"], list):
@@ -464,7 +464,7 @@ class IAMPolicyStatement:
         action: str,
         resource: str = "*",
         principal: Optional[str] = None,
-        incoming_condition_values: Optional[Dict[str, Union[str, List[str]]]] = None,
+        incoming_condition_values: Optional[Dict[str, str]] = None,
     ) -> "PermissionResult":
         is_action_concerned = False
 
@@ -522,23 +522,24 @@ class IAMPolicyStatement:
         ) or principal in expected_principals.get("AWS")
 
     def _check_conditions(
-        self, incoming_condition_values: Optional[Dict[str, Union[str, List[str]]]]
+        self, incoming_condition_values: Optional[Dict[str, str]]
     ) -> bool:
         expected_conditions = self._statement.get("Condition")
         if not expected_conditions:
             return True
 
-        expected_values_pool = self._build_expected_values_pool(
-            incoming_condition_values
-        )
-
         trust_conditions = TrustRelationShipConditions(expected_conditions)
         for condition in trust_conditions:
-            if condition.value_source_key not in expected_values_pool:
-                return False
+            actual_values: List[str] = []
 
-            actual_value = expected_values_pool[condition.value_source_key]
-            if not condition.verify_condition(actual_value):
+            for context_key in condition.context_keys:
+                if (
+                    incoming_condition_values
+                    and context_key in incoming_condition_values
+                ):
+                    actual_values.append(incoming_condition_values[context_key])
+
+            if not condition.verify_condition(actual_values):
                 return False
 
         return True

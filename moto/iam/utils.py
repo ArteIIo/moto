@@ -1,6 +1,6 @@
 import base64
 import string
-from typing import Any, Dict, List, Union
+from typing import Any, Dict
 
 from moto.moto_api._internal import mock_random as random
 
@@ -67,8 +67,8 @@ def random_policy_id() -> str:
 
 def format_incoming_conditional_values(
     data: Dict[str, str],
-) -> Dict[str, Union[str, List[str]]]:
-    incoming_conditional_values: Dict[str, Union[str, List[str]]] = {}
+) -> Dict[str, str]:
+    incoming_conditional_values: Dict[str, str] = {}
 
     if "ExternalId" in data:
         incoming_conditional_values["sts:ExternalId"] = data["ExternalId"][0]
